@@ -1,0 +1,13 @@
+# build output
+build/
+build-rel/
+*.o
+*.obj
+compile_commands.json
+.cache/
+
+# local-only notes (war stories, scratch)
+*.local.md
+
+# reference material (not part of the source)
+*.pdf
