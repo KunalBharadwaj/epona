@@ -49,6 +49,14 @@ target_link_libraries(tcpstack_lib
 add_executable(tcpstack src/main.cpp)
 target_link_libraries(tcpstack PRIVATE tcpstack_lib tcpstack_warnings)
 
+# ---- Benchmark client --------------------------------------------------------
+# A plain Linux-sockets client (no stack code) so it measures the full path
+# through whatever TCP server it talks to. Not sanitized, for honest timings.
+find_package(Threads REQUIRED)
+add_executable(bench bench/bench.cpp)
+target_compile_features(bench PRIVATE cxx_std_20)
+target_link_libraries(bench PRIVATE Threads::Threads tcpstack_warnings)
+
 # ---- Tests -------------------------------------------------------------------
 include(CTest)
 if(BUILD_TESTING)
