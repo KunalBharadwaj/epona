@@ -1,9 +1,10 @@
 //
-// Milestone 2 -- adds UDP on top of the Milestone 1 stack.
+// Milestones 3-4 -- adds TCP (connection lifecycle + reliability) to the stack.
 //
 // Bring up tap0 (see README), run this, then from the host:
 //     ping 10.0.0.2                              # ARP + ICMP
 //     printf 'hi\n' | nc -u -w1 10.0.0.2 7777    # UDP echo
+//     printf 'hi\n' | nc -q1 10.0.0.2 7777       # TCP echo (clean open + close)
 //
 #include <csignal>
 #include <cstdio>
@@ -12,6 +13,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include "app/tcp_echo.hpp"
 #include "app/udp_echo.hpp"
 #include "ip/ipv4_address.hpp"
 #include "net/event_loop.hpp"
@@ -54,8 +56,10 @@ int main(int argc, char** argv) {
         stack::Stack stack(tap, loop, local_mac, local_ip);
         stack.start();
 
+        // Echo services: UDP (Milestone 2) and TCP (Milestones 3-4) on port 7777.
         constexpr std::uint16_t kEchoPort = 7777;
         app::UdpEcho udp_echo(stack.udp(), kEchoPort);
+        app::TcpEcho tcp_echo(stack.tcp(), kEchoPort);
 
         std::printf("tcpstack up on '%s'\n", tap.name().c_str());
         std::printf("  MAC %s   IP %s\n", local_mac.to_string().c_str(),
@@ -63,17 +67,26 @@ int main(int argc, char** argv) {
         std::printf("  try:  ping %s\n", local_ip.to_string().c_str());
         std::printf("        nc -u %s %u      (UDP echo)\n",
                     local_ip.to_string().c_str(), kEchoPort);
+        std::printf("        nc %s %u         (TCP echo)\n",
+                    local_ip.to_string().c_str(), kEchoPort);
         std::printf("  Ctrl-C to quit.\n\n");
 
         loop.run();
 
         std::printf("\narp entries: %zu | icmp replies: %llu | udp echoed: %llu | "
-                    "checksum errors: ip %llu / udp %llu\n",
+                    "tcp conns: %llu (open now: %zu)\n"
+                    "tcp retransmits: %llu (rto) + %llu (fast)\n"
+                    "checksum errors: ip %llu / udp %llu / tcp %llu\n",
                     stack.arp().cache().size(),
                     static_cast<unsigned long long>(stack.icmp().echo_replies_sent()),
                     static_cast<unsigned long long>(udp_echo.echoed()),
+                    static_cast<unsigned long long>(tcp_echo.connections()),
+                    stack.tcp().connection_count(),
+                    static_cast<unsigned long long>(stack.tcp().retransmits()),
+                    static_cast<unsigned long long>(stack.tcp().fast_retransmits()),
                     static_cast<unsigned long long>(stack.ipv4().checksum_errors()),
-                    static_cast<unsigned long long>(stack.udp().checksum_errors()));
+                    static_cast<unsigned long long>(stack.udp().checksum_errors()),
+                    static_cast<unsigned long long>(stack.tcp().checksum_errors()));
         std::printf("shutting down.\n");
     } catch (const std::exception& e) {
         std::fprintf(stderr, "fatal: %s\n", e.what());

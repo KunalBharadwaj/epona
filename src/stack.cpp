@@ -12,7 +12,8 @@ Stack::Stack(net::TapDevice& device, net::EventLoop& loop,
       arp_(eth_, local_ip),
       ipv4_(eth_, arp_, local_ip),
       icmp_(ipv4_),
-      udp_(ipv4_) {
+      udp_(ipv4_),
+      tcp_(ipv4_, loop) {
     // Inbound dispatch wiring.
     eth_.set_arp_handler([this](std::span<const std::byte> p, const eth::MacAddr& src) {
         arp_.receive(p, src);
@@ -25,6 +26,9 @@ Stack::Stack(net::TapDevice& device, net::EventLoop& loop,
     });
     ipv4_.set_udp_handler([this](const ip::Ipv4Datagram& dg) {
         udp_.receive(dg);
+    });
+    ipv4_.set_tcp_handler([this](const ip::Ipv4Datagram& dg) {
+        tcp_.receive(dg);
     });
 }
 

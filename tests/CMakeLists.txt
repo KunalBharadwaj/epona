@@ -19,6 +19,8 @@ add_executable(tcpstack_tests
     test_ipv4.cpp
     test_icmp.cpp
     test_udp.cpp
+    test_seq.cpp
+    test_tcp.cpp
 )
 target_link_libraries(tcpstack_tests
     PRIVATE tcpstack_lib tcpstack_warnings GTest::gtest_main)

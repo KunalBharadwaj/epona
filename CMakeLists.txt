@@ -36,6 +36,8 @@ add_library(tcpstack_lib
     src/ip/ipv4.cpp
     src/ip/icmp.cpp
     src/udp/udp.cpp
+    src/tcp/tcp.cpp
+    src/tcp/tcp_connection.cpp
     src/stack.cpp
 )
 target_include_directories(tcpstack_lib PUBLIC ${CMAKE_SOURCE_DIR}/src)

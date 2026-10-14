@@ -14,8 +14,8 @@ epoll event loop, and unit-tested in isolation.
 | 0  | TAP device + packet plumbing + event loop        | ✅ done |
 | 1  | Ethernet + ARP + IPv4 + ICMP (`ping` replies)    | ✅ done |
 | 2  | UDP (pseudo-header checksum) + echo app           | ✅ done |
-| 3  | TCP connection lifecycle (RFC 793 state machine) | planned |
-| 4  | Reliability & performance (RTO, windows, Reno)   | planned |
+| 3  | TCP connection lifecycle (RFC 793 state machine) | ✅ done |
+| 4  | Reliability & performance (RTO, windows, Reno)   | ✅ done |
 | 5  | HTTP/1.1 server                                  | planned |
 
 ## Build
@@ -48,5 +48,6 @@ From another terminal:
 ```bash
 ping 10.0.0.2                         # ARP + ICMP
 printf 'hi\n' | nc -u -w1 10.0.0.2 7777   # UDP echo
+printf 'hi\n' | nc -q1 10.0.0.2 7777      # TCP echo (clean handshake + teardown)
 tcpdump -i tap0 -n                    # or: sudo tshark -i tap0 -n
 ```
