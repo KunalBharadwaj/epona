@@ -35,6 +35,7 @@ add_library(tcpstack_lib
     src/eth/arp.cpp
     src/ip/ipv4.cpp
     src/ip/icmp.cpp
+    src/udp/udp.cpp
     src/stack.cpp
 )
 target_include_directories(tcpstack_lib PUBLIC ${CMAKE_SOURCE_DIR}/src)

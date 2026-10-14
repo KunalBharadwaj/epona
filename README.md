@@ -13,7 +13,7 @@ epoll event loop, and unit-tested in isolation.
 |----|--------------------------------------------------|---------|
 | 0  | TAP device + packet plumbing + event loop        | ✅ done |
 | 1  | Ethernet + ARP + IPv4 + ICMP (`ping` replies)    | ✅ done |
-| 2  | UDP (pseudo-header checksum)                      | planned |
+| 2  | UDP (pseudo-header checksum) + echo app           | ✅ done |
 | 3  | TCP connection lifecycle (RFC 793 state machine) | planned |
 | 4  | Reliability & performance (RTO, windows, Reno)   | planned |
 | 5  | HTTP/1.1 server                                  | planned |
@@ -46,6 +46,7 @@ sudo ip link set tap0 up
 From another terminal:
 
 ```bash
-ping 10.0.0.2          # steady replies — the stack answers ARP + ICMP
-tcpdump -i tap0 -n     # watch the ARP exchange and ICMP echo/reply pairs
+ping 10.0.0.2                         # ARP + ICMP
+printf 'hi\n' | nc -u -w1 10.0.0.2 7777   # UDP echo
+tcpdump -i tap0 -n                    # or: sudo tshark -i tap0 -n
 ```

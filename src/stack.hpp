@@ -2,7 +2,7 @@
 //
 // The Stack ties every layer together and connects them to the device and the
 // event loop. It owns the per-layer objects and wires the inbound dispatch
-// chain:  device -> Ethernet -> {ARP | IPv4 -> ICMP}.
+// chain:  device -> Ethernet -> {ARP | IPv4 -> {ICMP, UDP}}.
 //
 #include "eth/arp.hpp"
 #include "eth/ethernet.hpp"
@@ -11,6 +11,7 @@
 #include "net/buffer.hpp"
 #include "net/event_loop.hpp"
 #include "net/tap_device.hpp"
+#include "udp/udp.hpp"
 
 namespace stack {
 
@@ -22,11 +23,12 @@ public:
     // Register the device fd with the event loop so frames start flowing.
     void start();
 
-    // Accessors (stats, tests, and later milestones wiring UDP/TCP).
+    // Accessors (stats, tests, and later milestones wiring TCP).
     eth::EthernetLayer& ethernet() noexcept { return eth_; }
     eth::Arp&           arp()      noexcept { return arp_; }
     ip::Ipv4Layer&      ipv4()     noexcept { return ipv4_; }
     ip::Icmp&           icmp()     noexcept { return icmp_; }
+    udp::Udp&           udp()      noexcept { return udp_; }
 
 private:
     void on_readable();
@@ -38,6 +40,7 @@ private:
     eth::Arp           arp_;
     ip::Ipv4Layer      ipv4_;
     ip::Icmp           icmp_;
+    udp::Udp           udp_;
 
     net::PacketBuffer rx_;
 };
