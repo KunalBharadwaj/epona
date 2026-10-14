@@ -31,6 +31,11 @@ endif()
 add_library(tcpstack_lib
     src/net/tap_device.cpp
     src/net/event_loop.cpp
+    src/eth/ethernet.cpp
+    src/eth/arp.cpp
+    src/ip/ipv4.cpp
+    src/ip/icmp.cpp
+    src/stack.cpp
 )
 target_include_directories(tcpstack_lib PUBLIC ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(tcpstack_lib

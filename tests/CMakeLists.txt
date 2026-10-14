@@ -12,6 +12,12 @@ FetchContent_MakeAvailable(googletest)
 add_executable(tcpstack_tests
     test_byteorder.cpp
     test_buffer.cpp
+    test_checksum.cpp
+    test_address.cpp
+    test_ethernet.cpp
+    test_arp.cpp
+    test_ipv4.cpp
+    test_icmp.cpp
 )
 target_link_libraries(tcpstack_tests
     PRIVATE tcpstack_lib tcpstack_warnings GTest::gtest_main)
