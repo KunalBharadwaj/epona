@@ -21,6 +21,7 @@ add_executable(tcpstack_tests
     test_udp.cpp
     test_seq.cpp
     test_tcp.cpp
+    test_sack.cpp
     test_http.cpp
 )
 target_link_libraries(tcpstack_tests

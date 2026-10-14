@@ -87,9 +87,35 @@ std::uint16_t TcpConnection::advertised_window() const {
 // ---------------------------------------------------------------------------
 void TcpConnection::send_raw(std::uint32_t seq, std::uint32_t ack, std::uint8_t flags,
                              std::span<const std::byte> payload, bool with_mss) {
+    // Build the options region (must end 4-byte aligned).
+    std::array<std::byte, 40> opt{};
+    std::size_t olen = 0;
+    auto put8  = [&](std::uint8_t b) { opt[olen++] = std::byte{b}; };
+    auto put32 = [&](std::uint32_t v) {
+        put8(static_cast<std::uint8_t>(v >> 24)); put8(static_cast<std::uint8_t>(v >> 16));
+        put8(static_cast<std::uint8_t>(v >> 8));  put8(static_cast<std::uint8_t>(v));
+    };
+
+    if (with_mss) {
+        // SYN: advertise our MSS, and offer SACK if appropriate.
+        put8(opt::kMss); put8(4);
+        put8(static_cast<std::uint8_t>(kMss >> 8)); put8(static_cast<std::uint8_t>(kMss & 0xFF));
+        if (offer_sack_) { put8(opt::kSackPermitted); put8(2); put8(opt::kNop); put8(opt::kNop); }
+    } else if (sack_ok_ && !(flags & flag::SYN) && !(flags & flag::RST) && !ooo_.empty()) {
+        // Data ACK while holding out-of-order data: tell the peer exactly what
+        // we have so it can selectively retransmit only the holes.
+        std::array<SackBlock, 3> blk;
+        std::uint8_t n = build_sack_blocks(blk);
+        if (n > 0) {
+            put8(opt::kNop); put8(opt::kNop); // align the SACK option
+            put8(opt::kSack); put8(static_cast<std::uint8_t>(2 + 8 * n));
+            for (std::uint8_t i = 0; i < n; ++i) { put32(blk[i].left); put32(blk[i].right); }
+        }
+    }
+
     net::PacketBuffer buf;
     net::NetWriter w(buf.capacity_span());
-    std::size_t header_len = kTcpMinHeader + (with_mss ? 4 : 0);
+    std::size_t header_len = kTcpMinHeader + olen;
 
     w.u16(tuple_.local_port);
     w.u16(tuple_.remote_port);
@@ -100,7 +126,7 @@ void TcpConnection::send_raw(std::uint32_t seq, std::uint32_t ack, std::uint8_t 
     w.u16(advertised_window());
     w.u16(0); // checksum placeholder
     w.u16(0); // urgent
-    if (with_mss) { w.u8(2); w.u8(4); w.u16(static_cast<std::uint16_t>(kMss)); }
+    w.bytes(std::span<const std::byte>(opt.data(), olen));
     w.bytes(payload);
     if (!w.ok()) return;
 
@@ -171,7 +197,15 @@ void TcpConnection::retransmit_oldest() {
     rtt_timing_ = false;
 
     if (!send_buf_.empty()) {
-        std::size_t len = std::min<std::size_t>(send_buf_.size(), kMss);
+        // With SACK, only resend the first hole: data up to the next range the
+        // peer has already SACKed, so we never retransmit what it already holds.
+        std::uint32_t limit = first_hole_limit(); // <= snd_nxt_
+        std::size_t hole = seq_gt(limit, snd_una_)
+                               ? static_cast<std::size_t>(limit - snd_una_)
+                               : send_buf_.size();
+        std::size_t len = std::min<std::size_t>({static_cast<std::size_t>(kMss),
+                                                 send_buf_.size(), hole});
+        if (len == 0) len = std::min<std::size_t>(send_buf_.size(), kMss);
         std::array<std::byte, kMss> tmp;
         for (std::size_t i = 0; i < len; ++i) tmp[i] = send_buf_[i];
         send_raw(snd_una_, rcv_nxt_, flag::ACK | flag::PSH,
@@ -183,9 +217,67 @@ void TcpConnection::retransmit_oldest() {
 }
 
 // ---------------------------------------------------------------------------
+// SACK (RFC 2018)
+// ---------------------------------------------------------------------------
+std::uint8_t TcpConnection::build_sack_blocks(std::array<SackBlock, 3>& out) const {
+    // Merge the out-of-order map into contiguous runs (ooo_ is sorted by seq).
+    std::vector<SackBlock> runs;
+    for (const auto& [seq, bytes] : ooo_) {
+        std::uint32_t l = seq;
+        std::uint32_t r = seq + static_cast<std::uint32_t>(bytes.size());
+        if (!runs.empty() && runs.back().right == l) runs.back().right = r;
+        else runs.push_back(SackBlock{l, r});
+    }
+    // Report the most recent (highest-seq) run first, per RFC 2018.
+    std::uint8_t n = 0;
+    for (auto it = runs.rbegin(); it != runs.rend() && n < 3; ++it) out[n++] = *it;
+    return n;
+}
+
+void TcpConnection::record_sack(const TcpHeader& h) {
+    if (!sack_ok_) return;
+    for (std::uint8_t i = 0; i < h.sack_count; ++i) {
+        std::uint32_t l = h.sack_blocks[i].left;
+        std::uint32_t r = h.sack_blocks[i].right;
+        if (!seq_lt(l, r)) continue;                 // invalid block
+        if (seq_lt(l, snd_una_)) l = snd_una_;       // clamp to our send window
+        if (seq_gt(r, snd_nxt_)) r = snd_nxt_;
+        if (seq_lt(l, r)) sacked_.push_back(SackBlock{l, r});
+    }
+    // Drop/trim anything at or below snd_una, then sort and merge.
+    std::vector<SackBlock> keep;
+    for (auto& b : sacked_) {
+        std::uint32_t l = seq_lt(b.left, snd_una_) ? snd_una_ : b.left;
+        if (seq_lt(l, b.right) && seq_gt(b.right, snd_una_)) keep.push_back(SackBlock{l, b.right});
+    }
+    std::sort(keep.begin(), keep.end(),
+              [](const SackBlock& a, const SackBlock& b) { return seq_lt(a.left, b.left); });
+    sacked_.clear();
+    for (auto& b : keep) {
+        if (!sacked_.empty() && seq_leq(b.left, sacked_.back().right)) {
+            if (seq_gt(b.right, sacked_.back().right)) sacked_.back().right = b.right;
+        } else {
+            sacked_.push_back(b);
+        }
+    }
+}
+
+std::uint32_t TcpConnection::first_hole_limit() const {
+    std::uint32_t limit = snd_nxt_;
+    for (const auto& b : sacked_) {
+        if (seq_gt(b.left, snd_una_) && seq_lt(b.left, limit)) limit = b.left;
+    }
+    return limit;
+}
+
+// ---------------------------------------------------------------------------
 // Opens
 // ---------------------------------------------------------------------------
 void TcpConnection::passive_open(const TcpHeader& syn) {
+    // Mirror SACK only if the peer offered it.
+    offer_sack_ = syn.sack_permitted;
+    sack_ok_    = syn.sack_permitted;
+
     irs_      = syn.seq;
     rcv_nxt_  = syn.seq + 1;
     iss_      = random_iss();
@@ -243,6 +335,7 @@ void TcpConnection::handle_syn_sent(const TcpHeader& h, std::span<const std::byt
 
     if (h.has(flag::ACK)) {
         if (h.ack != snd_nxt_) { send_raw(h.ack, 0, flag::RST); return; }
+        sack_ok_ = offer_sack_ && h.sack_permitted; // negotiation complete
         snd_una_ = h.ack;
         state_   = State::Established;
         send_ack();
@@ -255,6 +348,10 @@ void TcpConnection::handle_syn_sent(const TcpHeader& h, std::span<const std::byt
 
 void TcpConnection::process_ack(const TcpHeader& h, std::size_t data_len) {
     if (seq_gt(h.ack, snd_nxt_)) { send_ack(); return; } // acks unsent data
+
+    // Record any SACK blocks first, so a duplicate ACK carrying new SACK info
+    // steers retransmit_oldest() to the actual hole.
+    record_sack(h);
 
     // Duplicate ACK: no advance, no data, and we still have data in flight.
     const bool is_dup = (h.ack == snd_una_) && (data_len == 0) &&

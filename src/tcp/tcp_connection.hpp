@@ -119,6 +119,11 @@ private:
     void on_new_ack(std::uint32_t acked_bytes);
     void enter_loss_recovery(bool fast); // set ssthresh/cwnd on loss
 
+    // --- SACK (RFC 2018) ---
+    std::uint8_t build_sack_blocks(std::array<SackBlock, 3>& out) const; // receiver side
+    void         record_sack(const TcpHeader& h);                        // sender side
+    std::uint32_t first_hole_limit() const; // sender: where the first unSACKed hole ends
+
     // --- teardown ---
     void enter_time_wait();
     void abort();
@@ -165,6 +170,13 @@ private:
     std::uint32_t ssthresh_      = 0;
     std::uint32_t dup_acks_      = 0;
     bool          in_fast_recovery_ = false;
+
+    // SACK (RFC 2018). sack_ok_ is set once both sides offered SACK-permitted.
+    // sacked_ holds the peer-SACKed ranges above snd_una (sender side), kept
+    // sorted and merged, so retransmission skips data the peer already has.
+    bool                   offer_sack_ = true;  // include SACK-permitted in our SYN
+    bool                   sack_ok_ = false;
+    std::vector<SackBlock> sacked_;
 
     // Timers.
     net::TimerId rto_timer_       = 0;
