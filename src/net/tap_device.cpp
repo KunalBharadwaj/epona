@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <cstdio>
 #include <cstring>
 #include <stdexcept>
 #include <system_error>
@@ -74,13 +75,23 @@ std::size_t TapDevice::receive(std::span<std::byte> out) {
 }
 
 void TapDevice::send(std::span<const std::byte> frame) {
-    ssize_t n = ::write(fd_, frame.data(), frame.size());
+    // A failed write must not take down the whole stack: a transient kernel
+    // condition (ENOBUFS, a full queue) just means this frame is lost, and TCP
+    // will retransmit. We drop-and-log rather than throw out of the event loop.
+    ssize_t n;
+    do {
+        n = ::write(fd_, frame.data(), frame.size());
+    } while (n < 0 && errno == EINTR); // retry a signal-interrupted write
+
     if (n < 0) {
-        throw std::system_error(errno, std::generic_category(), "write(tap) failed");
+        std::fprintf(stderr, "tap: dropped outbound frame: write failed: %s\n",
+                     std::strerror(errno));
+        return;
     }
-    // A short write on a TAP device would mean a truncated frame; treat as fatal.
     if (static_cast<std::size_t>(n) != frame.size()) {
-        throw std::runtime_error("write(tap) wrote a truncated frame");
+        // A short write means a truncated frame went out; drop and note it.
+        std::fprintf(stderr, "tap: short write (%zd of %zu bytes), frame dropped\n",
+                     n, frame.size());
     }
 }
 
