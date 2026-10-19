@@ -230,3 +230,36 @@ so the steady-state hot path allocates nothing. Re-profiling confirmed the fix:
 After the change the remaining user-space hot spots are the work that *should*
 dominate — building segment headers and the one's-complement transport checksum
 over the payload — not a data-structure accident.
+
+## Known limitations
+
+These are deliberate scope cuts, not accidents — naming them is part of knowing
+where the edges are. Each is a reasonable next piece of work.
+
+- **No window scaling / timestamps / PAWS.** The advertised receive window is a
+  constant 65535 (a deliberate trick so our duplicate ACKs aren't mistaken for
+  window updates), which caps throughput on high bandwidth-delay-product links
+  and means the window doesn't reflect real buffer occupancy.
+- **Out-of-order reassembly is keyed by raw sequence number.** The OOO buffer is
+  a `std::map<uint32_t, …>` ordered numerically, so a connection that wraps the
+  32-bit sequence space *while* holding out-of-order segments across the wrap
+  would mis-order them. Correct for any transfer under 4 GiB without a wrap;
+  the proper fix is to order in sequence space (as `seq.hpp` already does for
+  comparisons).
+- **Congestion control is simplified Reno.** Slow start, AIMD, and fast
+  retransmit/recovery are implemented, but not NewReno's partial-ACK
+  retransmission; recovery leans on the SACK path instead.
+- **SACK recovery is receiver-complete, sender-partial.** We emit correct SACK
+  blocks and the peer benefits fully; our own retransmit resends the first
+  un-SACKed hole rather than implementing full RFC 6675 pipe/rescue.
+- **Predictable initial sequence numbers.** The ISS is derived from the clock,
+  not RFC 6528's keyed hash — fine for a trusted TAP link, not for a hostile
+  network.
+- **No SYN-flood defense.** Every inbound SYN allocates a TCB immediately; there
+  are no SYN cookies and no cap on concurrent half-open connections.
+- **ARP has no pending-packet queue and no cache eviction.** The first datagram
+  to an unresolved next hop is dropped (TCP's retransmit covers it, at the cost
+  of one RTO), and expired cache entries linger until overwritten rather than
+  being swept.
+- **Single-threaded, single connection-table.** One epoll thread drives
+  everything; there is no sharding or lock-free hand-off for multi-core scaling.
