@@ -170,12 +170,18 @@ loopback stays inside the kernel.
 
 | metric                        | our stack        | kernel loopback  |
 |-------------------------------|------------------|------------------|
-| bulk throughput (one-way)     | ~320 MB/s        | ~2640 MB/s       |
+| bulk throughput (one-way)     | ~200–320 MB/s    | ~1.2–2.6 GB/s    |
 | connection setup rate         | ~60 000 conn/s   | ~37 000 conn/s¹  |
 
 ¹ The loopback baseline is a single-threaded `accept()` loop, so it is a floor,
 not a tuned server; the comparison just shows our setup path is not a
 bottleneck.
+
+Absolute throughput and latency swing with machine state (CPU frequency, load):
+across sessions, kernel loopback itself ranged ~1.2–2.6 GB/s. What stays stable
+is the *same-run ratio* — our stack lands roughly 5–8× below kernel loopback —
+so the trustworthy performance claims below are same-session comparisons, not
+absolute headline figures.
 
 **Under loss — what SACK buys.** On a link shaped with
 `tc qdisc add dev tap0 root netem delay 20ms loss 5%`, a 256 KB echo (median of
@@ -200,3 +206,27 @@ tail-loss event SACK cannot help (the last segment has no later ACKs to select
 it). Both modes then show multi-second, high-variance stalls. Adding a
 realistic 20 ms RTT (above) is what lets SACK's one-RTT hole-filling show up as
 a clean, repeatable win instead of being buried under RTO noise.
+
+**Profile-driven optimization — the send buffer.** Rather than optimize on a
+hunch, I recorded the stack under a bulk echo with `perf`. The frame path was
+already allocation-free (packet buffers are stack arrays, the RX buffer is
+reused), so the interesting result was a function, not a malloc:
+`TcpConnection::try_send()` was **~20% of CPU self-time**, almost all of it a
+per-byte copy out of the send buffer — which was a `std::deque<std::byte>`.
+`std::deque::operator[]` is not free: each access recomputes a block index and
+chases the deque's block-map pointer across non-contiguous storage, so building
+every outbound segment walked the structure byte by byte.
+
+Replacing it with a contiguous ring buffer ([`send_ring.hpp`](src/tcp/send_ring.hpp),
+unit-tested for wrap-around and growth) makes segment extraction one or two
+`memcpy`s, and the ring only grows (doubling) when the outstanding window does —
+so the steady-state hot path allocates nothing. Re-profiling confirmed the fix:
+
+| | `try_send` self-time | one-way throughput (same machine, median of 5) |
+|-----------------|---------------------:|-----------------------------------------------:|
+| `std::deque`    | ~19.6%               | ~136 MB/s                                      |
+| contiguous ring | ~1.8%                | ~189 MB/s (**+39%**)                           |
+
+After the change the remaining user-space hot spots are the work that *should*
+dominate — building segment headers and the one's-complement transport checksum
+over the payload — not a data-structure accident.

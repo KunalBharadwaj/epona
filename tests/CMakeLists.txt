@@ -20,6 +20,7 @@ add_executable(tcpstack_tests
     test_icmp.cpp
     test_udp.cpp
     test_seq.cpp
+    test_send_ring.cpp
     test_tcp.cpp
     test_sack.cpp
     test_http.cpp

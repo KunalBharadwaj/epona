@@ -169,7 +169,7 @@ void TcpConnection::try_send() {
             if (seglen == 0) break;
 
             std::array<std::byte, kMss> tmp;
-            for (std::size_t i = 0; i < seglen; ++i) tmp[i] = send_buf_[in_flight_data + i];
+            send_buf_.copy_out(in_flight_data, tmp.data(), seglen);
 
             if (!rtt_timing_) { rtt_timing_ = true; rtt_seq_ = snd_nxt_; rtt_start_ = net::Clock::now(); }
 
@@ -215,7 +215,7 @@ void TcpConnection::retransmit_oldest() {
                                                  send_buf_.size(), hole});
         if (len == 0) len = std::min<std::size_t>(send_buf_.size(), kMss);
         std::array<std::byte, kMss> tmp;
-        for (std::size_t i = 0; i < len; ++i) tmp[i] = send_buf_[i];
+        send_buf_.copy_out(0, tmp.data(), len);
         send_raw(snd_una_, rcv_nxt_, flag::ACK | flag::PSH,
                  std::span<const std::byte>(tmp.data(), len));
     } else if (fin_sent_ && snd_una_ != snd_nxt_) {
@@ -319,7 +319,7 @@ void TcpConnection::active_open() {
 void TcpConnection::send(std::span<const std::byte> data) {
     if (data.empty()) return;
     if (state_ != State::Established && state_ != State::CloseWait) return;
-    send_buf_.insert(send_buf_.end(), data.begin(), data.end());
+    send_buf_.append(data);
     try_send();
 }
 
@@ -389,8 +389,7 @@ void TcpConnection::process_ack(const TcpHeader& h, std::size_t data_len) {
         std::uint32_t acked = h.ack - snd_una_;
         snd_una_ = h.ack;
         std::size_t data_acked = std::min<std::size_t>(acked, send_buf_.size());
-        send_buf_.erase(send_buf_.begin(),
-                        send_buf_.begin() + static_cast<std::ptrdiff_t>(data_acked));
+        send_buf_.pop_front(data_acked);
         snd_wnd_ = h.window;
         dup_acks_ = 0;
         // Grow the congestion window on acknowledged DATA only — the SYN and FIN
@@ -578,7 +577,7 @@ void TcpConnection::on_persist() {
     if (snd_wnd_ != 0 || send_buf_.size() - in_flight_data == 0) return;
 
     // Probe with one byte beyond the window to force a window update.
-    std::byte probe = send_buf_[in_flight_data];
+    std::byte probe = send_buf_.at(in_flight_data);
     send_raw(snd_nxt_, rcv_nxt_, flag::ACK, std::span<const std::byte>(&probe, 1));
     snd_nxt_ += 1;
     arm_rto();

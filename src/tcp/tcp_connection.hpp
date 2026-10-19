@@ -14,7 +14,6 @@
 //
 #include <cstddef>
 #include <cstdint>
-#include <deque>
 #include <functional>
 #include <map>
 #include <span>
@@ -22,6 +21,7 @@
 
 #include "ip/ipv4_address.hpp"
 #include "net/event_loop.hpp"
+#include "tcp/send_ring.hpp"
 #include "tcp/tcp_header.hpp"
 
 namespace tcp {
@@ -144,8 +144,10 @@ private:
     std::uint32_t rcv_nxt_ = 0;
     std::uint32_t irs_     = 0;
 
-    // Send buffer: unacknowledged + unsent application bytes, starting at snd_una_.
-    std::deque<std::byte> send_buf_;
+    // Send buffer: unacknowledged + unsent application bytes, starting at
+    // snd_una_. A contiguous ring (not a std::deque) so segment extraction is a
+    // memcpy, not a per-byte walk of non-contiguous storage (see send_ring.hpp).
+    SendRing send_buf_;
 
     // Out-of-order received segments awaiting a gap fill (seq -> bytes).
     std::map<std::uint32_t, std::vector<std::byte>> ooo_;

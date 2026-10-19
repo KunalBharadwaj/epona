@@ -11,3 +11,4 @@ compile_commands.json
 
 # reference material (not part of the source)
 *.pdf
+build-prof/
