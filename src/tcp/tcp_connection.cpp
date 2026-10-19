@@ -4,6 +4,7 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 
 #include "ip/pseudo_header.hpp"
 #include "net/buffer.hpp"
@@ -33,6 +34,13 @@ std::uint32_t random_iss() {
 double now_ms_since(net::TimePoint start) {
     using namespace std::chrono;
     return duration_cast<duration<double, std::milli>>(net::Clock::now() - start).count();
+}
+
+// SACK is on by default; set TCPSTACK_NOSACK=1 to negotiate it off (handy for
+// before/after loss measurements). Read once, then cached.
+bool sack_enabled() {
+    static const bool enabled = (std::getenv("TCPSTACK_NOSACK") == nullptr);
+    return enabled;
 }
 } // namespace
 
@@ -274,9 +282,9 @@ std::uint32_t TcpConnection::first_hole_limit() const {
 // Opens
 // ---------------------------------------------------------------------------
 void TcpConnection::passive_open(const TcpHeader& syn) {
-    // Mirror SACK only if the peer offered it.
-    offer_sack_ = syn.sack_permitted;
-    sack_ok_    = syn.sack_permitted;
+    // Mirror SACK only if the peer offered it (and we have it enabled).
+    offer_sack_ = syn.sack_permitted && sack_enabled();
+    sack_ok_    = offer_sack_;
 
     irs_      = syn.seq;
     rcv_nxt_  = syn.seq + 1;
@@ -293,6 +301,7 @@ void TcpConnection::passive_open(const TcpHeader& syn) {
 }
 
 void TcpConnection::active_open() {
+    offer_sack_ = sack_enabled();
     iss_      = random_iss();
     snd_una_  = iss_;
     cwnd_     = kInitialCwnd;
