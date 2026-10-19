@@ -31,9 +31,12 @@ namespace net {
 // 1518 covers the 14-byte header + payload + FCS. We round up for headroom.
 inline constexpr std::size_t kMaxFrameSize = 2048;
 
-// An owning, fixed-capacity frame buffer. Milestone 0 uses these directly off
-// the stack / a vector; later milestones recycle them through a buffer pool so
-// the hot path never calls malloc.
+// An owning, fixed-capacity frame buffer: a plain inline byte array, no heap.
+// The stack keeps the frame path allocation-free by construction — outbound
+// buffers live on the stack for the duration of a send, and inbound frames
+// reuse one long-lived buffer (stack::Stack::rx_) — so there is no packet pool
+// to recycle. (TCP's send buffer, which does grow, is the contiguous ring in
+// tcp/send_ring.hpp.)
 class PacketBuffer {
 public:
     PacketBuffer() = default;
