@@ -139,6 +139,9 @@ private:
     std::uint32_t snd_nxt_ = 0;
     std::uint32_t snd_wnd_ = 0; // peer's advertised receive window (bytes)
     std::uint32_t iss_     = 0;
+    // Effective send MSS: min(our MSS, the peer's advertised MSS option). We
+    // segment outbound data to this so we never overshoot what the peer accepts.
+    std::uint32_t snd_mss_ = 1460;
 
     // Receive sequence space.
     std::uint32_t rcv_nxt_ = 0;

@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -359,4 +360,35 @@ TEST(TcpReno, ReassemblesOutOfOrderData) {
     // Now the gap filler arrives: both chunks come out in order.
     t.receive(dg(seg(kCliPort, kSrvPort, 1001, our + 1, flag::ACK | flag::PSH, a, 64240)));
     EXPECT_EQ(got, "helloworld");
+}
+
+TEST(TcpReno, HonorsPeerAdvertisedMss) {
+    CapturingIpv4Sender ip{kOur}; net::EventLoop loop; Tcp t{ip, loop};
+    TcpConnection* conn = nullptr;
+    t.listen(kSrvPort, [&](TcpConnection& c) { conn = &c; });
+
+    // Client SYN advertising a small MSS of 500 (so our 1460 must be clamped).
+    constexpr std::uint16_t peer_mss = 500;
+    std::vector<std::byte> syn(kTcpMinHeader + 4);
+    net::NetWriter w(syn);
+    w.u16(kCliPort); w.u16(kSrvPort); w.u32(1000); w.u32(0);
+    w.u8(static_cast<std::uint8_t>((syn.size() / 4) << 4)); // data offset = 6 words
+    w.u8(flag::SYN); w.u16(64240); w.u16(0); w.u16(0);
+    w.u8(opt::kMss); w.u8(4); w.u8(peer_mss >> 8); w.u8(peer_mss & 0xFF);
+    std::uint16_t c = ip::transport_checksum(kPeer, kOur, IpProto::Tcp, syn);
+    syn[16] = B(c >> 8); syn[17] = B(c & 0xFF);
+
+    t.receive(dg(syn));
+    std::uint32_t our = TcpHeader::parse(ip.datagrams.back().payload).value().seq;
+    t.receive(dg(seg(kCliPort, kSrvPort, 1001, our + 1, flag::ACK, {}, 64240)));
+    ASSERT_NE(conn, nullptr);
+
+    conn->send(big(4000)); // spans several segments
+    std::size_t max_payload = 0;
+    for (const auto& d : ip.datagrams) {
+        auto h = TcpHeader::parse(d.payload).value();
+        max_payload = std::max(max_payload, d.payload.size() - h.data_offset);
+    }
+    EXPECT_GT(max_payload, 0u);                                     // did send data
+    EXPECT_LE(max_payload, static_cast<std::size_t>(peer_mss));     // never exceeds peer MSS
 }

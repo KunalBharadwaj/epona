@@ -165,7 +165,7 @@ void TcpConnection::try_send() {
             if (unsent == 0) break;
 
             std::size_t seglen = std::min<std::size_t>({usable, unsent,
-                                                        static_cast<std::size_t>(kMss)});
+                                                        static_cast<std::size_t>(snd_mss_)});
             if (seglen == 0) break;
 
             std::array<std::byte, kMss> tmp;
@@ -211,9 +211,9 @@ void TcpConnection::retransmit_oldest() {
         std::size_t hole = seq_gt(limit, snd_una_)
                                ? static_cast<std::size_t>(limit - snd_una_)
                                : send_buf_.size();
-        std::size_t len = std::min<std::size_t>({static_cast<std::size_t>(kMss),
+        std::size_t len = std::min<std::size_t>({static_cast<std::size_t>(snd_mss_),
                                                  send_buf_.size(), hole});
-        if (len == 0) len = std::min<std::size_t>(send_buf_.size(), kMss);
+        if (len == 0) len = std::min<std::size_t>(send_buf_.size(), snd_mss_);
         std::array<std::byte, kMss> tmp;
         send_buf_.copy_out(0, tmp.data(), len);
         send_raw(snd_una_, rcv_nxt_, flag::ACK | flag::PSH,
@@ -286,6 +286,9 @@ void TcpConnection::passive_open(const TcpHeader& syn) {
     offer_sack_ = syn.sack_permitted && sack_enabled();
     sack_ok_    = offer_sack_;
 
+    // Honor the peer's MSS (ignoring absurdly small values).
+    if (syn.mss >= 88) snd_mss_ = std::min<std::uint32_t>(kMss, syn.mss);
+
     irs_      = syn.seq;
     rcv_nxt_  = syn.seq + 1;
     iss_      = random_iss();
@@ -341,6 +344,7 @@ void TcpConnection::handle_syn_sent(const TcpHeader& h, std::span<const std::byt
     irs_     = h.seq;
     rcv_nxt_ = h.seq + 1;
     snd_wnd_ = h.window;
+    if (h.mss >= 88) snd_mss_ = std::min<std::uint32_t>(kMss, h.mss);
 
     if (h.has(flag::ACK)) {
         if (h.ack != snd_nxt_) { send_raw(h.ack, 0, flag::RST); return; }
