@@ -12,6 +12,7 @@
 // which matters enormously once the TCP state machine and retransmission timers
 // land. Timers here will later drive RTO retransmits, TIME-WAIT, and keepalive.
 //
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <functional>
@@ -49,9 +50,10 @@ public:
     TimerId add_timer(Duration delay, TimerHandler handler);
     void    cancel_timer(TimerId id);
 
-    // Run until stop() is called.
+    // Run until stop() is called. stop() is async-signal-safe (an atomic store
+    // on a lock-free bool), so a signal handler may call it directly.
     void run();
-    void stop() noexcept { running_ = false; }
+    void stop() noexcept { running_.store(false); }
 
 private:
     Duration time_until_next_timer() const;
@@ -64,8 +66,8 @@ private:
         bool operator>(const ScheduledTimer& o) const { return when > o.when; }
     };
 
-    int  epoll_fd_ = -1;
-    bool running_  = false;
+    int               epoll_fd_ = -1;
+    std::atomic<bool> running_{false};
 
     std::unordered_map<int, ReadHandler> read_handlers_;
 

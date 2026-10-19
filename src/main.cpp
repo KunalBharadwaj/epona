@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <exception>
 #include <fcntl.h>
+#include <signal.h>
 #include <unistd.h>
 
 #include "app/http_server.hpp"
@@ -26,6 +27,19 @@ net::EventLoop* g_loop = nullptr;
 
 void on_sigint(int) {
     if (g_loop) g_loop->stop();
+}
+
+// Install `on_sigint` for `sig` WITHOUT SA_RESTART, so a signal interrupts a
+// blocked epoll_wait with EINTR instead of transparently restarting it — only
+// then does the loop get to re-check its stopped flag and exit. (glibc's
+// std::signal() uses BSD semantics and sets SA_RESTART, which would leave an
+// idle loop unresponsive to Ctrl-C.)
+void install_handler(int sig) {
+    struct sigaction sa{};
+    sa.sa_handler = on_sigint;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0; // no SA_RESTART
+    ::sigaction(sig, &sa, nullptr);
 }
 
 void make_nonblocking(int fd) {
@@ -53,8 +67,8 @@ int main(int argc, char** argv) {
 
         net::EventLoop loop;
         g_loop = &loop;
-        std::signal(SIGINT, on_sigint);
-        std::signal(SIGTERM, on_sigint); // clean shutdown on `kill` too
+        install_handler(SIGINT);
+        install_handler(SIGTERM); // clean shutdown on `kill` too
 
         stack::Stack stack(tap, loop, local_mac, local_ip);
         stack.start();
