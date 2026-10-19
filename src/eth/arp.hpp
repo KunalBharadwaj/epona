@@ -58,7 +58,7 @@ public:
     void receive(std::span<const std::byte> payload, const MacAddr& src_mac);
 
     // Resolve `target` to a MAC. On a cache miss, broadcasts a request and
-    // returns nullopt — the caller should drop the packet and rely on retry.
+    // returns nullopt, the caller should drop the packet and rely on retry.
     std::optional<MacAddr> resolve(ip::Ipv4Addr target);
 
     // Broadcast "who has `target`?"

@@ -256,7 +256,7 @@ TEST(Tcp, ChecksumErrorIsDropped) {
 }
 
 // ===========================================================================
-// Milestone 4: reliability & performance
+// reliability & performance: flow control, congestion window, retransmit
 // ===========================================================================
 namespace {
 constexpr std::size_t kMssT = 1460;

@@ -26,7 +26,7 @@ void EthernetLayer::receive(std::span<const std::byte> frame) {
         if (on_ipv4_) on_ipv4_(payload, h.src);
         break;
     default:
-        break; // unknown ethertype (e.g. IPv6 0x86DD) — ignore
+        break; // unknown ethertype (e.g. IPv6 0x86DD), ignore
     }
 }
 

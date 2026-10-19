@@ -2,7 +2,7 @@
 //
 // The transport-layer (UDP/TCP) checksum over the IPv4 pseudo-header.
 //
-// UDP and TCP checksums don't just cover their own segment — they also cover a
+// UDP and TCP checksums don't just cover their own segment, they also cover a
 // 12-byte "pseudo-header" synthesised from the IP layer:
 //
 //     +--------+--------+--------+--------+
@@ -14,8 +14,8 @@
 //     +--------+--------+--------+--------+
 //
 // This ties the segment to its addresses and protocol, so a misdelivered packet
-// fails the check. The guide calls getting this wrong "the classic bug" — so
-// it's one shared helper, written once, that both UDP and TCP call.
+// fails the check. It's easy to get subtly wrong, so it's one shared helper
+// that both UDP and TCP call.
 //
 #include <array>
 #include <cstddef>

@@ -1,8 +1,7 @@
 #pragma once
 //
 // A trivial UDP echo service: whatever lands on the bound port is sent straight
-// back to the sender. This is the Milestone 2 "done when" demo — `nc -u` a line
-// and get the same line back.
+// back to the sender. `nc -u` a line and it comes back.
 //
 #include <cstdint>
 #include <span>

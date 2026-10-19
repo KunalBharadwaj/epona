@@ -2,10 +2,9 @@
 //
 // The Internet checksum (RFC 1071): the one's-complement sum of 16-bit words.
 //
-// Used by the IPv4 header, ICMP, and (over a pseudo-header) by UDP and TCP. The
-// guide flags this as a classic silent-bug source — a wrong checksum means the
-// peer drops your packet without a word — so it lives in one place and is
-// unit-tested hard.
+// Used by the IPv4 header, ICMP, and (over a pseudo-header) by UDP and TCP. A
+// wrong checksum means the peer drops the packet with no error, so this lives
+// in one place and is unit-tested thoroughly.
 //
 // Two properties we rely on:
 //   * To build a checksum: sum the data with the checksum field zeroed, fold
@@ -21,7 +20,7 @@ namespace net {
 
 // Accumulate the unfolded 32-bit sum over `data`, continuing from `sum`.
 // Words are big-endian (network order). A trailing odd byte is padded with a
-// zero low byte — correct only when `data` is the final chunk of the message,
+// zero low byte, correct only when `data` is the final chunk of the message,
 // which is how every caller uses it (pseudo-headers are always even-length, so
 // chaining stays 16-bit aligned).
 constexpr std::uint32_t checksum_partial(std::span<const std::byte> data,

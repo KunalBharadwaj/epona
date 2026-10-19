@@ -30,7 +30,7 @@ void on_sigint(int) {
 }
 
 // Install `on_sigint` for `sig` WITHOUT SA_RESTART, so a signal interrupts a
-// blocked epoll_wait with EINTR instead of transparently restarting it — only
+// blocked epoll_wait with EINTR instead of transparently restarting it, only
 // then does the loop get to re-check its stopped flag and exit. (glibc's
 // std::signal() uses BSD semantics and sets SA_RESTART, which would leave an
 // idle loop unresponsive to Ctrl-C.)

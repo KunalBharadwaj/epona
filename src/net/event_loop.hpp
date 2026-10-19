@@ -2,15 +2,14 @@
 //
 // The event loop: one epoll instance, one thread, driving the whole stack.
 //
-// Structure (straight from the guide):
+// Each iteration:
 //   1. compute how long until the next timer fires
 //   2. epoll_wait up to that long for any readable fd
 //   3. dispatch each readable fd to its handler
 //   4. service every timer that has now expired
 //
-// Keeping it single-threaded means no locks and easy-to-reason-about state --
-// which matters enormously once the TCP state machine and retransmission timers
-// land. Timers here will later drive RTO retransmits, TIME-WAIT, and keepalive.
+// Single-threaded, so there are no locks and the TCP state machine and its
+// timers (RTO retransmit, TIME-WAIT, persist) are easy to reason about.
 //
 #include <atomic>
 #include <chrono>

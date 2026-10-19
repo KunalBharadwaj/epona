@@ -2,7 +2,7 @@
 //
 // UDP (RFC 768): an 8-byte header and a port demux. Deliberately built before
 // TCP because it exercises the transport checksum (over the pseudo-header) and
-// port-based delivery with no state machine in the way — so when TCP misbehaves
+// port-based delivery with no state machine in the way, so when TCP misbehaves
 // later, these pieces are already trusted.
 //
 //   src port (2) | dst port (2) | length (2) | checksum (2) | payload...

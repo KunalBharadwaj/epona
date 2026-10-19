@@ -1,8 +1,8 @@
 #pragma once
 //
 // A TCP echo service: accept connections on a port and echo back every byte
-// received, closing when the peer closes. This is the Milestone 3 demo —
-// `nc 10.0.0.2 <port>`, type a line, get it back, Ctrl-D for a clean teardown.
+// received, closing when the peer closes. `nc 10.0.0.2 <port>`, type a line,
+// get it back, Ctrl-D for a clean teardown.
 //
 #include <cstdint>
 #include <span>

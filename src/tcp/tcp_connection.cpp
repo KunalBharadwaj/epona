@@ -396,7 +396,7 @@ void TcpConnection::process_ack(const TcpHeader& h, std::size_t data_len) {
         send_buf_.pop_front(data_acked);
         snd_wnd_ = h.window;
         dup_acks_ = 0;
-        // Grow the congestion window on acknowledged DATA only — the SYN and FIN
+        // Grow the congestion window on acknowledged DATA only, the SYN and FIN
         // each consume a sequence number but aren't data.
         on_new_ack(static_cast<std::uint32_t>(data_acked));
 

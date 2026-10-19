@@ -1,10 +1,10 @@
 #pragma once
 //
-// ICMP (RFC 792): for Milestone 1 we only answer echo requests (ping).
+// ICMP (RFC 792). Only echo requests (ping) are handled.
 //
 // An echo request (type 8) becomes an echo reply (type 0) with the identifier,
 // sequence number and payload copied verbatim and the ICMP checksum recomputed.
-// Everything else is ignored for now.
+// Everything else is ignored.
 //
 #include <cstdint>
 

@@ -2,8 +2,8 @@
 //
 // Packet buffers and the cursor types every layer uses to parse/build headers.
 //
-// The guide is explicit: don't pass raw char* around. We give the stack one
-// owning buffer type (PacketBuffer) plus two lightweight, non-owning cursors:
+// Rather than pass raw char* around, the stack uses one owning buffer type
+// (PacketBuffer) plus two lightweight, non-owning cursors:
 //
 //   NetReader  -- reads big-endian integers and byte ranges off the front of a
 //                 frame, bounds-checked, as we parse UP the layers (Eth -> IP
@@ -32,9 +32,9 @@ namespace net {
 inline constexpr std::size_t kMaxFrameSize = 2048;
 
 // An owning, fixed-capacity frame buffer: a plain inline byte array, no heap.
-// The stack keeps the frame path allocation-free by construction — outbound
+// The stack keeps the frame path allocation-free by construction, outbound
 // buffers live on the stack for the duration of a send, and inbound frames
-// reuse one long-lived buffer (stack::Stack::rx_) — so there is no packet pool
+// reuse one long-lived buffer (stack::Stack::rx_), so there is no packet pool
 // to recycle. (TCP's send buffer, which does grow, is the contiguous ring in
 // tcp/send_ring.hpp.)
 class PacketBuffer {

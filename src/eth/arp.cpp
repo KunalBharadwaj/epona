@@ -39,7 +39,7 @@ void Arp::receive(std::span<const std::byte> payload, const MacAddr& /*src_mac*/
     if (htype != kArpHwEthernet || ptype != kArpProtoIpv4 || hlen != 6 || plen != 4)
         return;
 
-    // Learn the sender's mapping regardless of op — cheap and useful.
+    // Learn the sender's mapping regardless of op, cheap and useful.
     if (spa.value != 0) cache_.insert(spa, sha);
 
     if (oper == kArpOpRequest && tpa == local_ip_) {

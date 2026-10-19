@@ -1,7 +1,7 @@
 #pragma once
 //
 // One TCP connection = one Transmission Control Block (TCB) running the RFC 793
-// state machine. Milestone 4 makes it actually behave like TCP under loss:
+// state machine, with the pieces that make it behave under loss and congestion:
 //
 //   * a SEND BUFFER holding unacknowledged bytes, so we can retransmit;
 //   * a RETRANSMISSION timer with an RTO from the Jacobson/Karels estimator

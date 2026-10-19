@@ -2,16 +2,14 @@
 //
 // Network byte-order helpers.
 //
-// Everything on the wire is big-endian ("network byte order"). Our CPU is
-// almost certainly little-endian, so every multi-byte integer we read off a
-// packet or write into one has to be swapped. The guide calls this out as the
-// single most common source of silent bugs, so we isolate it here, make it
-// constexpr, and unit-test it.
+// Everything on the wire is big-endian. Most CPUs are little-endian, so every
+// multi-byte integer read off a packet or written into one has to be swapped.
+// This is an easy place to introduce silent bugs, so the swaps live here, are
+// constexpr, and are unit-tested.
 //
-// We implement the swaps ourselves with <bit> (C++20) instead of pulling in
-// htons/htonl from <arpa/inet.h> — it keeps the stack honest about what byte
-// order means and it's a nice thing to be able to explain in an interview.
-// (std::byteswap would do this for us, but that's C++23.)
+// They use <bit> (C++20) rather than htons/htonl from <arpa/inet.h>, so there's
+// no dependency on the platform's network headers. (std::byteswap would replace
+// these, but it's C++23.)
 //
 #include <bit>
 #include <concepts>

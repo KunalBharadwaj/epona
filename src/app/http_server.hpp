@@ -1,8 +1,8 @@
 #pragma once
 //
-// A tiny HTTP/1.1 server running entirely over our user-space TCP stack. This
-// is the Milestone 5 demo: point curl or a browser at http://10.0.0.2:8080/ and
-// watch our own stack — Ethernet frame up — serve the page.
+// A small HTTP/1.1 server running over the user-space TCP stack. Point curl or
+// a browser at http://10.0.0.2:8080/ and the page is served by this stack, from
+// the Ethernet frame up.
 //
 // The HTTP parsing and response building are pure functions (unit-tested with
 // no sockets); the HttpServer class wires them to TCP with per-connection
@@ -135,7 +135,7 @@ public:
                 }
             };
             // When the client closes its side (e.g. curl exits a keep-alive
-            // connection), close ours too — otherwise we'd leak the TCB in
+            // connection), close ours too, otherwise we'd leak the TCB in
             // CLOSE-WAIT forever.
             c.on_close = [](tcp::TcpConnection& conn) { conn.close(); };
         });

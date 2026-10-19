@@ -1,7 +1,7 @@
 #pragma once
 //
-// Classic `hexdump -C` style output. Milestone 0's proof of life: dump every
-// frame the kernel hands us so we can eyeball raw packets before we parse them.
+// `hexdump -C` style output: dump a frame so raw bytes can be eyeballed before
+// any parsing exists to interpret them.
 //
 #include <cstddef>
 #include <cstdint>
